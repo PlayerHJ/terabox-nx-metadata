@@ -1,0 +1,40 @@
+name: Refresh DLC names
+on:
+  schedule:
+    - cron: '23 */6 * * *'
+  workflow_dispatch:
+  push:
+    paths:
+      - tools/build_dlc_names.py
+      - .github/workflows/refresh.yml
+permissions:
+  contents: write
+concurrency:
+  group: dlc-name-index
+  cancel-in-progress: false
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Prepare decoder
+        run: |
+          if ! command -v zstd >/dev/null; then
+            sudo apt-get update
+            sudo apt-get install -y zstd
+          fi
+      - name: Build Korean-first index
+        run: python tools/build_dlc_names.py --output data/dlc-names.json.gz
+      - name: Publish changed names
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- data/dlc-names.json.gz
+          if ! git diff --cached --quiet; then
+            git commit -m 'Refresh Korean-first DLC names'
+            git push
+          fi
