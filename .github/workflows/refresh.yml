@@ -1,11 +1,13 @@
 name: Refresh DLC names
 on:
   schedule:
-    - cron: '23 */6 * * *'
+    # Hourly wake-ups retry missed checks; the guard performs one check per UTC six-hour window.
+    - cron: '23 * * * *'
   workflow_dispatch:
   push:
     paths:
       - tools/build_dlc_names.py
+      - tools/refresh_dlc_names.py
       - .github/workflows/refresh.yml
 permissions:
   contents: write
@@ -15,26 +17,39 @@ concurrency:
 jobs:
   refresh:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+      - name: Check six-hour refresh window
+        id: due
+        run: python tools/refresh_dlc_names.py --check-due
       - uses: actions/setup-python@v5
+        if: steps.due.outputs.required == 'true'
         with:
           python-version: '3.12'
       - name: Prepare decoder
+        if: steps.due.outputs.required == 'true'
         run: |
           if ! command -v zstd >/dev/null; then
             sudo apt-get update
             sudo apt-get install -y zstd
           fi
-      - name: Build Korean-first index
-        run: python tools/build_dlc_names.py --output data/dlc-names.json.gz
-      - name: Publish changed names
+      - name: Check and refresh Korean-first index
+        id: build
+        if: steps.due.outputs.required == 'true'
+        run: python tools/refresh_dlc_names.py
+      - name: Publish check status and changed names
+        if: always() && steps.due.outputs.required == 'true'
+        env:
+          INDEX_BUILD_OUTCOME: ${{ steps.build.outcome }}
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -- data/dlc-names.json.gz
+          git add -- data/refresh-status.json
+          if [ "$INDEX_BUILD_OUTCOME" = success ]; then
+            git add -- data/dlc-names.json.gz
+          fi
           if ! git diff --cached --quiet; then
-            git commit -m 'Refresh Korean-first DLC names'
+            git commit -m 'Check Korean-first DLC metadata'
             git push
           fi
