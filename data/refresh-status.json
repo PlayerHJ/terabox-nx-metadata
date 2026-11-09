@@ -1,15 +1,15 @@
 {
   "schema": 1,
   "source": "borntohonk/titledb",
-  "last_attempt_utc": "2026-11-09T06:52:28Z",
-  "run_url": "https://github.com/PlayerHJ/terabox-nx-metadata/actions/runs/42575729897",
-  "upstream_revision": "a2520d6babd6d7dd4cfc27845c0e4daa44c2f00b",
-  "names": 23262,
-  "gzip_bytes": 401955,
-  "index_sha256": "46ef49b0651670c084d1f8e9b83ae6bdba3b51dfafb329bda8784698ee5194fb",
+  "last_attempt_utc": "2026-11-09T17:39:21Z",
+  "run_url": "https://github.com/PlayerHJ/terabox-nx-metadata/actions/runs/42666716843",
+  "upstream_revision": "8a60de09b552283a7fe718138848febe02e7440b",
+  "names": 23268,
+  "gzip_bytes": 402202,
+  "index_sha256": "5ce30eaa4432a356a96e9ee77c45ceb4a92e25fc61228d85d68b23a77fd1b9f0",
   "result": "success",
-  "last_success_utc": "2026-11-09T06:52:28Z",
-  "last_success_window_utc": "2026-11-09T06:00:00Z",
+  "last_success_utc": "2026-11-09T17:39:24Z",
+  "last_success_window_utc": "2026-11-09T12:00:00Z",
   "attempts": 1,
-  "changed": false
+  "changed": true
 }
