@@ -39,7 +39,9 @@ def extract(default,korean,english=None,japanese=None):
    titles=[title] if title else links.get(str(row.get('nsuId') or key),()) if not row.get('id') else ()
    for title in titles:
     candidate=(language_rank(name),source_rank,name)
-    if title not in chosen or candidate<chosen[title]:chosen[title]=candidate
+    # Preserve the source's record order for aliases of the same ID/language.
+    # Alphabetical name order is not evidence of the correct product/edition.
+    if title not in chosen or candidate[:2]<=chosen[title][:2]:chosen[title]=candidate
  names={title:item[2] for title,item in chosen.items()};preferred=sum(item[0]==0 for item in chosen.values())
  if len(names)<1000 or preferred<100:raise ValueError('Incomplete source; retain the previously published index')
  if len(names)>100000:raise ValueError('Too many names')
