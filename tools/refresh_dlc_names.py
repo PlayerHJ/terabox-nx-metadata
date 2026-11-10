@@ -42,10 +42,11 @@ def read_status(path):
     return {}
 
 
-def due(previous, now, event):
+def due(previous, now, event, require_metadata=False):
     return not (event == "schedule" and previous.get("result") == "success"
                 and previous.get("last_success_window_utc") == window(now)
-                and previous.get("language_priority") == POLICY)
+                and previous.get("language_priority") == POLICY
+                and (not require_metadata or previous.get("metadata_policy") == "version-dates-v1"))
 
 
 def atomic_status(path, value):
@@ -79,18 +80,33 @@ def index_summary(path):
             "gzip_bytes": len(wire), "index_sha256": hashlib.sha256(wire).hexdigest()}
 
 
-def refresh(output, status, event, *, runner=subprocess.run, sleeper=time.sleep, clock=utc_now):
+def refresh(output, status, event, *, metadata_output=None, runner=subprocess.run, sleeper=time.sleep, clock=utc_now):
     started = clock()
     previous = read_status(status)
-    if not due(previous, started, event):
+    if not due(previous, started, event, metadata_output is not None) and (metadata_output is None or metadata_output.exists()):
         return {"result": "skipped", "reason": "Hourly window already checked"}
     record = dict(previous)
     record.update(schema=1, source=SOURCE, last_attempt_utc=stamp(started))
     run_id = os.environ.get("GITHUB_RUN_ID", "")
     if os.environ.get("GITHUB_REPOSITORY") == REPOSITORY and run_id.isdigit():
         record["run_url"] = f"https://github.com/{REPOSITORY}/actions/runs/{run_id}"
-    old_hash = hashlib.sha256(output.read_bytes()).hexdigest() if output.exists() else None
+    # The builder validates before replacement, but a failed second replace or
+    # mismatched source revision must also preserve the previous pair.
+    originals = {path: path.read_bytes() if path.exists() else None
+                 for path in [output] + ([metadata_output] if metadata_output is not None else [])}
+    old_hash = hashlib.sha256(originals[output]).hexdigest() if originals[output] is not None else None
     force = previous.get("language_priority") != POLICY
+    metadata_summary = None
+    if metadata_output is not None:
+        try:
+            from .build_game_metadata import summary as metadata_summary
+        except ImportError:
+            from build_game_metadata import summary as metadata_summary
+        force |= previous.get("metadata_policy") != "version-dates-v1"
+        try:
+            metadata_summary(metadata_output.read_bytes())
+        except (OSError, ValueError, EOFError):
+            force = True
     if output.exists():
         try:
             index_summary(output)
@@ -99,14 +115,21 @@ def refresh(output, status, event, *, runner=subprocess.run, sleeper=time.sleep,
     last_error = None
     for attempt in range(1, 4):
         try:
-            command = [sys.executable, str(Path(__file__).with_name("build_dlc_names.py")),
+            command = [sys.executable, str(Path(__file__).with_name("build_game_metadata.py" if metadata_output is not None else "build_dlc_names.py")),
                        "--output", str(output)]
+            if metadata_output is not None:
+                command += ["--metadata-output", str(metadata_output)]
             if force:
                 command.append("--force")
             completed = runner(command, timeout=240, check=False)
             if completed.returncode:
                 raise RuntimeError(f"Index builder failed (exit {completed.returncode})")
             summary = index_summary(output)
+            if metadata_output is not None:
+                extra = metadata_summary(metadata_output.read_bytes())
+                if extra["metadata_revision"] != summary["upstream_revision"]:
+                    raise ValueError("Name and date source revisions differ")
+                record.update(extra)
             record.update(summary)
             record["language_priority"] = POLICY
             record.update(result="success", last_success_utc=stamp(clock()),
@@ -117,6 +140,13 @@ def refresh(output, status, event, *, runner=subprocess.run, sleeper=time.sleep,
             return record
         except (OSError, ValueError, EOFError, RuntimeError, subprocess.TimeoutExpired) as error:
             last_error = error
+            for path, data in originals.items():
+                if data is None:
+                    path.unlink(missing_ok=True)
+                elif not path.exists() or path.read_bytes() != data:
+                    temporary = path.with_suffix(path.suffix + ".rollback")
+                    temporary.write_bytes(data)
+                    temporary.replace(path)
             print(f"Public metadata attempt {attempt}/3 failed: {type(error).__name__}", file=sys.stderr)
             if attempt < 3:
                 sleeper((15, 45)[attempt - 1])
@@ -131,18 +161,21 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", type=Path, default=Path("data/dlc-names.json.gz"))
     parser.add_argument("--status", type=Path, default=Path("data/refresh-status.json"))
+    parser.add_argument("--metadata-output", type=Path)
     parser.add_argument("--check-due", action="store_true")
     args = parser.parse_args()
     event = os.environ.get("GITHUB_EVENT_NAME", "workflow_dispatch")
     if args.check_due:
-        required = due(read_status(args.status), utc_now(), event)
+        required = due(read_status(args.status), utc_now(), event, args.metadata_output is not None)
+        if args.metadata_output is not None and not args.metadata_output.exists():
+            required = True
         value = "true" if required else "false"
         if os.environ.get("GITHUB_OUTPUT"):
             with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as stream:
                 stream.write("required=" + value + "\n")
         print(json.dumps({"required": required, "window_utc": window(utc_now())}))
         return
-    print(json.dumps(refresh(args.output, args.status, event), ensure_ascii=False))
+    print(json.dumps(refresh(args.output, args.status, event, metadata_output=args.metadata_output), ensure_ascii=False))
 
 
 if __name__ == "__main__":
