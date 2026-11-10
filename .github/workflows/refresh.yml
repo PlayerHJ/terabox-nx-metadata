@@ -1,8 +1,9 @@
 name: Refresh DLC names
 on:
   schedule:
-    # Check upstream once per UTC hour; avoid the busy top-of-hour minute.
-    - cron: '23 * * * *'
+    # Six wake-ups per hour recover a missed trigger. The guard checks upstream
+    # only once in an already successful UTC hour; avoid the top-of-hour minute.
+    - cron: '3,13,23,33,43,53 * * * *'
   workflow_dispatch:
   push:
     paths:
@@ -21,6 +22,10 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          # A delayed/queued event may point to an old status commit. Read the
+          # latest main after acquiring concurrency, not the triggering SHA.
+          ref: main
       - name: Check hourly refresh window
         id: due
         run: python tools/refresh_dlc_names.py --check-due --metadata-output data/game-metadata.json.gz
@@ -54,3 +59,6 @@ jobs:
             git commit -m 'Check Korean-first DLC metadata'
             git push
           fi
+      - name: Report actual refresh result
+        if: always()
+        run: python tools/refresh_dlc_names.py --write-summary

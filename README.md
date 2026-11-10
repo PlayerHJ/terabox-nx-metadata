@@ -14,9 +14,9 @@ Source: [borntohonk/titledb](https://github.com/borntohonk/titledb), using `titl
 
 ## Automatic refresh
 
-GitHub Actions checks upstream every hour, at minute 23 UTC (for example, 00:23, 01:23, 02:23). A missed trigger is retried at the next hourly wake-up. Duplicate scheduled runs in an already successful UTC hour are skipped; manual runs always check immediately. Transient failures get three attempts, and a failed check does not mark the window complete or replace the previous valid index.
+GitHub Actions aims for one successful upstream check per UTC hour. Recovery wake-ups run at minutes **03, 13, 23, 33, 43, and 53** of every hour. If a trigger is missed or a check fails, another wake-up can retry about ten minutes later instead of waiting another hour. Duplicate scheduled runs in an already successful UTC hour are skipped; manual runs always check immediately. Each run reads the latest `main` after acquiring the shared concurrency lock, so a delayed event cannot reuse an old check status. Missing output files are rebuilt even within an already checked hour. Transient failures get three attempts, and a failed check does not mark the window complete or replace the previous valid index.
 
-**Last check:** [refresh-status.json](data/refresh-status.json) records the last attempt, last successful check, source revision, result, and Actions run link. It is updated even when upstream names have not changed. The modification time of `dlc-names.json.gz` indicates a content change, not the last check.
+**Last check:** [refresh-status.json](data/refresh-status.json) records the last attempt, last successful check, source revision, result, and Actions run link. It is updated even when upstream names have not changed. `changed` and `metadata_changed` separately report changes to the name-only and combined feeds. The Actions summary also shows the actual last successful check. The modification time of either gzip indicates a content change, not the last check.
 
 GitHub schedules can be delayed or dropped; this is automatic retry, not an exact-time guarantee. Public-repository inactivity can disable schedules after 60 days. Check Actions and re-enable a disabled workflow if needed. The owner PC and Switch do not need to stay on.
 

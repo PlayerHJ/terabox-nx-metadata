@@ -50,6 +50,31 @@ def due(previous, now, event, require_metadata=False):
                 and (not require_metadata or previous.get("metadata_policy") == METADATA_POLICY))
 
 
+def refresh_required(previous, now, event, output, metadata_output=None):
+    return (not output.exists()
+            or (metadata_output is not None and not metadata_output.exists())
+            or due(previous, now, event, metadata_output is not None))
+
+
+def write_summary(status, destination):
+    record = read_status(status)
+    # Report the real successful check separately from the files' content age.
+    checked = record.get("last_success_utc", "Not yet checked")
+    attempt = record.get("last_attempt_utc", "Not yet attempted")
+    result = record.get("result", "No saved result")
+    lines = ["## Metadata refresh", "",
+             f"- Last successful upstream check (UTC): `{checked}`",
+             f"- Last attempt (UTC): `{attempt}`",
+             f"- Saved result: `{result}`",
+             "- Schedule: 10-minute recovery wake-ups; one successful check per UTC hour.",
+             "- Unchanged gzip files retain their bytes and modification history."]
+    for field, label in [("changed", "DLC name file"), ("metadata_changed", "Combined metadata file")]:
+        if field in record:
+            lines.append(f"- {label}: {'changed' if record[field] else 'unchanged'}")
+    with open(destination, "a", encoding="utf-8") as stream:
+        stream.write("\n".join(lines) + "\n")
+
+
 def atomic_status(path, value):
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(path.suffix + ".tmp")
@@ -84,7 +109,7 @@ def index_summary(path):
 def refresh(output, status, event, *, metadata_output=None, runner=subprocess.run, sleeper=time.sleep, clock=utc_now):
     started = clock()
     previous = read_status(status)
-    if not due(previous, started, event, metadata_output is not None) and (metadata_output is None or metadata_output.exists()):
+    if not refresh_required(previous, started, event, output, metadata_output):
         return {"result": "skipped", "reason": "Hourly window already checked"}
     record = dict(previous)
     record.update(schema=1, source=SOURCE, last_attempt_utc=stamp(started))
@@ -138,6 +163,8 @@ def refresh(output, status, event, *, metadata_output=None, runner=subprocess.ru
             record.update(result="success", last_success_utc=stamp(clock()),
                           last_success_window_utc=window(started), attempts=attempt,
                           changed=old_hash != summary["index_sha256"])
+            if metadata_output is not None:
+                record["metadata_changed"] = originals[metadata_output] != metadata_output.read_bytes()
             record.pop("error", None)
             atomic_status(status, record)
             return record
@@ -156,6 +183,7 @@ def refresh(output, status, event, *, metadata_output=None, runner=subprocess.ru
     record.update(result="failure", attempts=3,
                   error="Upstream check/build failed; previous successful check is retained. See Actions logs.")
     record.pop("changed", None)
+    record.pop("metadata_changed", None)
     atomic_status(status, record)
     raise RuntimeError("Public metadata refresh failed after three attempts") from last_error
 
@@ -166,12 +194,14 @@ def main():
     parser.add_argument("--status", type=Path, default=Path("data/refresh-status.json"))
     parser.add_argument("--metadata-output", type=Path)
     parser.add_argument("--check-due", action="store_true")
+    parser.add_argument("--write-summary", action="store_true")
     args = parser.parse_args()
     event = os.environ.get("GITHUB_EVENT_NAME", "workflow_dispatch")
+    if args.write_summary:
+        write_summary(args.status, os.environ["GITHUB_STEP_SUMMARY"])
+        return
     if args.check_due:
-        required = due(read_status(args.status), utc_now(), event, args.metadata_output is not None)
-        if args.metadata_output is not None and not args.metadata_output.exists():
-            required = True
+        required = refresh_required(read_status(args.status), utc_now(), event, args.output, args.metadata_output)
         value = "true" if required else "false"
         if os.environ.get("GITHUB_OUTPUT"):
             with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as stream:
