@@ -116,7 +116,15 @@ def main():
  names_map,_=names.extract(default,korean,english,japanese)
  dates,releases=extract_dates(json.loads(history),versions(latest.decode('utf-8-sig')),default,korean,english,japanese)
  legacy=names.encode(names_map,revision);wire=encode(names_map,dates,releases,revision)
+ # Adding the date feed must not rewrite identical legacy names merely
+ # because another Python/zlib build emits a different gzip byte stream.
+ if args.output.exists() and args.output.stat().st_size<=WIRE_LIMIT:
+  previous=args.output.read_bytes()
+  try:
+   if json.loads(gzip.decompress(previous))==json.loads(gzip.decompress(legacy)):legacy=previous
+  except (ValueError,EOFError,OSError):pass
  for path,data in [(args.output,legacy),(args.metadata_output,wire)]:
+  if path.exists() and path.read_bytes()==data:continue
   path.parent.mkdir(parents=True,exist_ok=True);temporary=path.with_suffix(path.suffix+'.tmp');temporary.write_bytes(data);temporary.replace(path)
  print(json.dumps(dict(changed=True,**summary(wire))))
 if __name__=='__main__':main()
