@@ -16,6 +16,7 @@ SOURCE = "borntohonk/titledb"
 REPOSITORY = "PlayerHJ/terabox-nx-metadata"
 WIRE_LIMIT = 1024 * 1024
 RAW_LIMIT = 4 * 1024 * 1024
+POLICY = "ko-en-ja-v1"
 
 
 def utc_now():
@@ -43,7 +44,8 @@ def read_status(path):
 
 def due(previous, now, event):
     return not (event == "schedule" and previous.get("result") == "success"
-                and previous.get("last_success_window_utc") == window(now))
+                and previous.get("last_success_window_utc") == window(now)
+                and previous.get("language_priority") == POLICY)
 
 
 def atomic_status(path, value):
@@ -88,7 +90,7 @@ def refresh(output, status, event, *, runner=subprocess.run, sleeper=time.sleep,
     if os.environ.get("GITHUB_REPOSITORY") == REPOSITORY and run_id.isdigit():
         record["run_url"] = f"https://github.com/{REPOSITORY}/actions/runs/{run_id}"
     old_hash = hashlib.sha256(output.read_bytes()).hexdigest() if output.exists() else None
-    force = False
+    force = previous.get("language_priority") != POLICY
     if output.exists():
         try:
             index_summary(output)
@@ -106,6 +108,7 @@ def refresh(output, status, event, *, runner=subprocess.run, sleeper=time.sleep,
                 raise RuntimeError(f"Index builder failed (exit {completed.returncode})")
             summary = index_summary(output)
             record.update(summary)
+            record["language_priority"] = POLICY
             record.update(result="success", last_success_utc=stamp(clock()),
                           last_success_window_utc=window(started), attempts=attempt,
                           changed=old_hash != summary["index_sha256"])

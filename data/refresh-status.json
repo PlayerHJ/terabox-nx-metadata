@@ -1,15 +1,15 @@
 {
   "schema": 1,
   "source": "borntohonk/titledb",
-  "last_attempt_utc": "2026-11-10T01:38:53Z",
-  "run_url": "https://github.com/PlayerHJ/terabox-nx-metadata/actions/runs/42737245985",
-  "upstream_revision": "8a60de09b552283a7fe718138848febe02e7440b",
+  "last_attempt_utc": "2026-11-10T09:12:06Z",
+  "upstream_revision": "865744d951f8ee73ebc831820b909439785f7ca8",
   "names": 23268,
-  "gzip_bytes": 402202,
-  "index_sha256": "5ce30eaa4432a356a96e9ee77c45ceb4a92e25fc61228d85d68b23a77fd1b9f0",
+  "gzip_bytes": 402087,
+  "index_sha256": "2554919779d34f0ab65ae686b02865d60b692aaa5b99935b4e825b56058e533a",
   "result": "success",
-  "last_success_utc": "2026-11-10T01:38:53Z",
-  "last_success_window_utc": "2026-11-10T00:00:00Z",
+  "last_success_utc": "2026-11-10T09:12:06Z",
+  "last_success_window_utc": "2026-11-10T06:00:00Z",
   "attempts": 1,
-  "changed": false
+  "changed": true,
+  "language_priority": "ko-en-ja-v1"
 }

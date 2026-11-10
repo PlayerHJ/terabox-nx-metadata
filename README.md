@@ -1,8 +1,8 @@
 # TeraBox NX DLC names
 
-Compact public DLC title-ID/name metadata for TeraBox NX. Korean-region names take precedence; otherwise the default source name is retained. Unnamed records stay unnamed. This is metadata only, without games, download links, tickets, keys, account information, or app user telemetry.
+Compact public DLC title-ID/name metadata for TeraBox NX. Names prefer Korean, then English, then Japanese, then another available source name. Untranslated Japanese text in a Korean-region record does not displace an available English name. Unnamed records stay unnamed. This is metadata only, without games, download links, tickets, keys, account information, or app user telemetry.
 
-Source: [borntohonk/titledb](https://github.com/borntohonk/titledb), using `titles.json.zst` and `KR.ko.json` pinned to the same upstream commit. The source's MIT license is retained in `LICENSE`.
+Source: [borntohonk/titledb](https://github.com/borntohonk/titledb), using `titles.json.zst`, `KR.ko.json`, `US.en.json`, and `JP.ja.json` pinned to the same upstream commit. Regional databases are processed on GitHub; the Switch still receives only one compact index. The source's MIT license is retained in `LICENSE`.
 
 `data/dlc-names.json.gz` contains schema 1, upstream repository/revision, language policy, and a map from 16-digit title IDs to names. The Switch receives only this small index and keeps it in RAM.
 
