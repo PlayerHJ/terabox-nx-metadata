@@ -11,7 +11,7 @@ try:
 except ImportError:
  import build_dlc_names as names
 
-POLICY='version-dates-v1'
+POLICY='version-dates-v2'
 WIRE_LIMIT=1024*1024
 RAW_LIMIT=4*1024*1024
 
@@ -65,8 +65,32 @@ def extract_dates(history,latest,default,korean,english,japanese):
     if title not in releases:releases[title]=d
  return dict(sorted(dates.items())),dict(sorted(releases.items()))
 
-def encode(names_map,dates,releases,revision):
+def application_id(value):
+ value=str(value or '')
+ return value.upper() if re.fullmatch(r'[0-9A-Fa-f]{16}',value) and int(value,16) and int(value,16)&0x1fff==0 else None
+
+def extract_game_releases(default,korean,english,japanese):
+ # Only an application's own eShop product is eligible. Never reuse a DLC,
+ # patch observation date, or another title in a similarly named family.
+ links=collections.defaultdict(set);canonical={}
+ for key,row in default.items():
+  if not isinstance(row,dict):continue
+  title=application_id(row.get('id',key))
+  if title and row.get('nsuId'):links[str(row['nsuId'])].add(title);canonical[title]=str(row['nsuId'])
+ chosen={}
+ for rank,rows in enumerate([korean,english,japanese,default]):
+  for key,row in rows.items():
+   if not isinstance(row,dict) or not (date:=day(row.get('releaseDate'))):continue
+   title=application_id(row.get('id',key) if rank==3 else row.get('id'))
+   products=[title] if title else links.get(str(row.get('nsuId') or key),()) if not row.get('id') else ()
+   for title in products:
+    priority=(rank,0 if str(row.get('nsuId') or key)==canonical.get(title) else 1)
+    if title not in chosen or priority<chosen[title][0]:chosen[title]=(priority,date)
+ return {title:value[1] for title,value in sorted(chosen.items())}
+
+def encode(names_map,dates,releases,revision,games=None):
  document={'schema':1,'source':names.SOURCE,'revision':revision,'language':'ko-first','names':names_map,'dates':dates,'releases':releases}
+ if games is not None:document['games']=games
  raw=json.dumps(document,ensure_ascii=False,separators=(',',':')).encode('utf8')
  if len(raw)>RAW_LIMIT:raise ValueError('Metadata exceeds decoded bound')
  wire=gzip.compress(raw,compresslevel=6,mtime=0)
@@ -80,8 +104,9 @@ def summary(wire):
  with gzip.GzipFile(fileobj=io.BytesIO(wire)) as stream:raw=stream.read(RAW_LIMIT+1)
  if len(raw)>RAW_LIMIT:raise ValueError('Metadata exceeds decoded bound')
  document=json.loads(raw)
- if not isinstance(document,dict) or set(document)!={'schema','source','revision','language','names','dates','releases'} or document['schema']!=1 or document['source']!=names.SOURCE or document['language']!='ko-first' or not re.fullmatch('[0-9a-f]{40}',str(document['revision'])):raise ValueError('Invalid metadata envelope')
- for field in ['names','dates','releases']:
+ fields={'schema','source','revision','language','names','dates','releases'}
+ if not isinstance(document,dict) or set(document) not in [fields,fields|{'games'}] or document['schema']!=1 or document['source']!=names.SOURCE or document['language']!='ko-first' or not re.fullmatch('[0-9a-f]{40}',str(document['revision'])):raise ValueError('Invalid metadata envelope')
+ for field in ['names','dates','releases']+(['games'] if 'games' in document else []):
   rows=document[field]
   if not isinstance(rows,dict) or len(rows)>100000:raise ValueError('Invalid metadata map')
   for title,value in rows.items():
@@ -90,9 +115,9 @@ def summary(wire):
     if names.dlc_id(title)!=title or not isinstance(value,str) or not value or names.clean_name(value)!=value:raise ValueError('Invalid DLC name')
    elif field=='dates':
     if not isinstance(value,list) or len(value)!=2 or type(value[0]) is not int or not 0<value[0]<=0xffffffff or day(value[1])!=value[1]:raise ValueError('Invalid version date')
-   elif names.dlc_id(title)!=title or day(value)!=value:raise ValueError('Invalid product release date')
+   elif (application_id(title) if field=='games' else names.dlc_id(title))!=title or day(value)!=value:raise ValueError('Invalid product release date')
  if len(document['names'])<1000 or len(document['dates'])<1000:raise ValueError('Incomplete metadata')
- return {'metadata_revision':document['revision'],'metadata_policy':POLICY,'metadata_names':len(document['names']),'version_dates':len(document['dates']),'dlc_release_dates':len(document['releases']),'metadata_gzip_bytes':len(wire),'metadata_raw_bytes':len(raw),'metadata_sha256':hashlib.sha256(wire).hexdigest()}
+ return {'metadata_revision':document['revision'],'metadata_policy':POLICY if 'games' in document else 'version-dates-v1','metadata_names':len(document['names']),'version_dates':len(document['dates']),'dlc_release_dates':len(document['releases']),'game_release_dates':len(document.get('games',{})),'metadata_gzip_bytes':len(wire),'metadata_raw_bytes':len(raw),'metadata_sha256':hashlib.sha256(wire).hexdigest()}
 
 def main():
  parser=argparse.ArgumentParser();parser.add_argument('--output',type=Path,required=True);parser.add_argument('--metadata-output',type=Path,required=True);parser.add_argument('--force',action='store_true');args=parser.parse_args()
@@ -101,7 +126,7 @@ def main():
  if not args.force and args.output.exists() and args.metadata_output.exists():
   try:
    old=summary(args.metadata_output.read_bytes());legacy=json.loads(gzip.decompress(args.output.read_bytes()))
-   if old['metadata_revision']==revision and legacy.get('revision')==revision and legacy.get('names')==json.loads(gzip.decompress(args.metadata_output.read_bytes()))['names']:
+   if old['metadata_policy']==POLICY and old['metadata_revision']==revision and legacy.get('revision')==revision and legacy.get('names')==json.loads(gzip.decompress(args.metadata_output.read_bytes()))['names']:
     print(json.dumps(dict(changed=False,**old)));return
   except (OSError,ValueError,EOFError):pass
  zstd=shutil.which('zstd') or ('C:/devkitPro/msys2/usr/bin/zstd.exe' if Path('C:/devkitPro/msys2/usr/bin/zstd.exe').exists() else None)
@@ -115,7 +140,9 @@ def main():
  default,korean,english,japanese=[json.loads(v) for v in [decoded.stdout,kr,en,jp]]
  names_map,_=names.extract(default,korean,english,japanese)
  dates,releases=extract_dates(json.loads(history),versions(latest.decode('utf-8-sig')),default,korean,english,japanese)
- legacy=names.encode(names_map,revision);wire=encode(names_map,dates,releases,revision)
+ games=extract_game_releases(default,korean,english,japanese)
+ if len(games)<1000:raise ValueError('Incomplete game release dates')
+ legacy=names.encode(names_map,revision);wire=encode(names_map,dates,releases,revision,games)
  # Adding the date feed must not rewrite identical legacy names merely
  # because another Python/zlib build emits a different gzip byte stream.
  if args.output.exists() and args.output.stat().st_size<=WIRE_LIMIT:

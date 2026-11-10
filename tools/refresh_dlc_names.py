@@ -17,6 +17,7 @@ REPOSITORY = "PlayerHJ/terabox-nx-metadata"
 WIRE_LIMIT = 1024 * 1024
 RAW_LIMIT = 4 * 1024 * 1024
 POLICY = "ko-en-ja-v1"
+METADATA_POLICY = "version-dates-v2"
 
 
 def utc_now():
@@ -46,7 +47,7 @@ def due(previous, now, event, require_metadata=False):
     return not (event == "schedule" and previous.get("result") == "success"
                 and previous.get("last_success_window_utc") == window(now)
                 and previous.get("language_priority") == POLICY
-                and (not require_metadata or previous.get("metadata_policy") == "version-dates-v1"))
+                and (not require_metadata or previous.get("metadata_policy") == METADATA_POLICY))
 
 
 def atomic_status(path, value):
@@ -102,7 +103,7 @@ def refresh(output, status, event, *, metadata_output=None, runner=subprocess.ru
             from .build_game_metadata import summary as metadata_summary
         except ImportError:
             from build_game_metadata import summary as metadata_summary
-        force |= previous.get("metadata_policy") != "version-dates-v1"
+        force |= previous.get("metadata_policy") != METADATA_POLICY
         try:
             metadata_summary(metadata_output.read_bytes())
         except (OSError, ValueError, EOFError):
@@ -127,6 +128,8 @@ def refresh(output, status, event, *, metadata_output=None, runner=subprocess.ru
             summary = index_summary(output)
             if metadata_output is not None:
                 extra = metadata_summary(metadata_output.read_bytes())
+                if extra['metadata_policy'] != METADATA_POLICY or extra['game_release_dates'] < 1000:
+                    raise ValueError("Missing game release dates")
                 if extra["metadata_revision"] != summary["upstream_revision"]:
                     raise ValueError("Name and date source revisions differ")
                 record.update(extra)

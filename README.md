@@ -4,11 +4,13 @@ Compact public DLC title-ID/name metadata for TeraBox NX. Names prefer Korean, t
 
 Source: [borntohonk/titledb](https://github.com/borntohonk/titledb), using `titles.json.zst`, `KR.ko.json`, `US.en.json`, `JP.ja.json`, `versions.txt`, and `versions.json` pinned to the same upstream commit. Regional databases are processed on GitHub; the Switch still receives only one compact index. The source's MIT license is retained in `LICENSE`.
 
-`data/dlc-names.json.gz` preserves the original five-field schema 1 name-only feed for older apps. `data/game-metadata.json.gz` adds `dates` and `releases` to schema 1. New apps receive this one combined feed instead of downloading both feeds and keep it in RAM. The combined gzip is bounded to 1 MiB and the decoded JSON to 4 MiB.
+`data/dlc-names.json.gz` preserves the original five-field schema 1 name-only feed for the distributed app. `data/game-metadata.json.gz` adds `dates`, `releases`, and `games` to schema 1. New apps receive this one combined feed instead of downloading both feeds and keep it in RAM. The combined gzip is bounded to 1 MiB and the decoded JSON to 4 MiB. The unreleased 1.4.15 date-only format has been replaced in place at the owner's request; there is no additional date-only file or endpoint.
 
 `dates` maps exact title IDs to `[numeric version, YYYYMMDD]`. These are **earliest observed dates in the source database**, not guaranteed official release dates. Standard update histories stored under a base ID are mapped only to that base's update ID, and only for the exact latest version in the same source revision. A missing version date stays absent; an older date is never attached to a newer version.
 
 `releases` contains the DLC's own product release date, where supplied. Apps label this separately as a release date for version 0 only. It is not the date of a later DLC update, and never comes from the base game's release date. Unknown dates are omitted. No individual installed title IDs are sent to the metadata server.
+
+`games` maps application title IDs to their own product release date (`YYYYMMDD`). A valid Korean-region date is preferred, then English, Japanese, and default source data from the same upstream commit. When multiple regional records share an ID, the canonical product's NSU ID is preferred within that region. Records without an ID are linked only through an exact canonical NSU ID. Patches, DLC, similarly named games, and version observation dates never supply a missing game's release date. Dates are shown as supplied by the source, including scheduled future releases; unavailable dates are omitted.
 
 ## Automatic refresh
 
