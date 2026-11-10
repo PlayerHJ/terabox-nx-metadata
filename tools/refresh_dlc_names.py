@@ -29,7 +29,7 @@ def stamp(value):
 
 def window(value):
     value = value.astimezone(timezone.utc)
-    return stamp(value.replace(hour=(value.hour // 6) * 6, minute=0, second=0, microsecond=0))
+    return stamp(value.replace(minute=0, second=0, microsecond=0))
 
 
 def read_status(path):
@@ -83,7 +83,7 @@ def refresh(output, status, event, *, runner=subprocess.run, sleeper=time.sleep,
     started = clock()
     previous = read_status(status)
     if not due(previous, started, event):
-        return {"result": "skipped", "reason": "Six-hour window already checked"}
+        return {"result": "skipped", "reason": "Hourly window already checked"}
     record = dict(previous)
     record.update(schema=1, source=SOURCE, last_attempt_utc=stamp(started))
     run_id = os.environ.get("GITHUB_RUN_ID", "")

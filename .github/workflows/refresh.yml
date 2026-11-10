@@ -1,7 +1,7 @@
 name: Refresh DLC names
 on:
   schedule:
-    # Hourly wake-ups retry missed checks; the guard performs one check per UTC six-hour window.
+    # Check upstream once per UTC hour; avoid the busy top-of-hour minute.
     - cron: '23 * * * *'
   workflow_dispatch:
   push:
@@ -20,7 +20,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-      - name: Check six-hour refresh window
+      - name: Check hourly refresh window
         id: due
         run: python tools/refresh_dlc_names.py --check-due
       - uses: actions/setup-python@v5

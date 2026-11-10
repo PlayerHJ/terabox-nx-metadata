@@ -8,7 +8,7 @@ Source: [borntohonk/titledb](https://github.com/borntohonk/titledb), using `titl
 
 ## Automatic refresh
 
-GitHub Actions checks upstream in six-hour UTC windows (00:00, 06:00, 12:00, 18:00). It wakes at minute 23 every hour, so a missed trigger is retried at the next hourly wake-up. A successful window is skipped on later wake-ups; manual runs always check immediately. Transient failures get three attempts, and a failed check does not mark the window complete or replace the previous valid index.
+GitHub Actions checks upstream every hour, at minute 23 UTC (for example, 00:23, 01:23, 02:23). A missed trigger is retried at the next hourly wake-up. Duplicate scheduled runs in an already successful UTC hour are skipped; manual runs always check immediately. Transient failures get three attempts, and a failed check does not mark the window complete or replace the previous valid index.
 
 **Last check:** [refresh-status.json](data/refresh-status.json) records the last attempt, last successful check, source revision, result, and Actions run link. It is updated even when upstream names have not changed. The modification time of `dlc-names.json.gz` indicates a content change, not the last check.
 
