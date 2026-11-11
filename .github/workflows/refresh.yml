@@ -5,14 +5,24 @@ on:
     # only once in an already successful UTC hour; avoid the top-of-hour minute.
     - cron: '3,13,23,33,43,53 * * * *'
   workflow_dispatch:
+    inputs:
+      periodic:
+        description: Use the hourly duplicate guard for an automatic relay
+        type: boolean
+        default: false
   push:
     paths:
       - tools/build_dlc_names.py
       - tools/build_game_metadata.py
       - tools/refresh_dlc_names.py
+      - tools/hourly_relay.py
       - .github/workflows/refresh.yml
+      - .github/workflows/hourly-relay.yml
 permissions:
   contents: write
+  actions: write
+env:
+  METADATA_PERIODIC: ${{ inputs.periodic }}
 concurrency:
   group: dlc-name-index
   cancel-in-progress: false
@@ -62,3 +72,8 @@ jobs:
       - name: Report actual refresh result
         if: always()
         run: python tools/refresh_dlc_names.py --write-summary
+      - name: Recover an inactive hourly relay
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python tools/hourly_relay.py --ensure

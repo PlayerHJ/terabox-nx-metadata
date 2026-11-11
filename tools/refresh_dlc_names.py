@@ -66,7 +66,7 @@ def write_summary(status, destination):
              f"- Last successful upstream check (UTC): `{checked}`",
              f"- Last attempt (UTC): `{attempt}`",
              f"- Saved result: `{result}`",
-             "- Schedule: 10-minute recovery wake-ups; one successful check per UTC hour.",
+             "- Timing: hourly automatic relay with 10-minute cron recovery; one successful check per UTC hour.",
              "- Unchanged gzip files retain their bytes and modification history."]
     for field, label in [("changed", "DLC name file"), ("metadata_changed", "Combined metadata file")]:
         if field in record:
@@ -196,7 +196,8 @@ def main():
     parser.add_argument("--check-due", action="store_true")
     parser.add_argument("--write-summary", action="store_true")
     args = parser.parse_args()
-    event = os.environ.get("GITHUB_EVENT_NAME", "workflow_dispatch")
+    event = ("schedule" if os.environ.get("METADATA_PERIODIC") == "true"
+             else os.environ.get("GITHUB_EVENT_NAME", "workflow_dispatch"))
     if args.write_summary:
         write_summary(args.status, os.environ["GITHUB_STEP_SUMMARY"])
         return

@@ -14,11 +14,13 @@ Source: [borntohonk/titledb](https://github.com/borntohonk/titledb), using `titl
 
 ## Automatic refresh
 
-GitHub Actions aims for one successful upstream check per UTC hour. Recovery wake-ups run at minutes **03, 13, 23, 33, 43, and 53** of every hour. If a trigger is missed or a check fails, another wake-up can retry about ten minutes later instead of waiting another hour. Duplicate scheduled runs in an already successful UTC hour are skipped; manual runs always check immediately. Each run reads the latest `main` after acquiring the shared concurrency lock, so a delayed event cannot reuse an old check status. Missing output files are rebuilt even within an already checked hour. Transient failures get three attempts, and a failed check does not mark the window complete or replace the previous valid index.
+GitHub Actions aims for one successful upstream check per UTC hour. **Hourly metadata relay** immediately requests a guarded refresh, then waits on a GitHub-hosted runner until minute **03** of the next UTC hour and explicitly starts its successor. This continues across hours even when GitHub omits cron events. One relay runs at a time, with a 75-minute job limit. It uses the repository's temporary token with Actions write permission to dispatch only these metadata workflows.
+
+The existing recovery wake-ups at **03, 13, 23, 33, 43, and 53** and a relay recovery schedule at **07** remain as backups. Every refresh also restarts the relay if none is active or queued. A disabled relay workflow is respected. Duplicate scheduled or relay checks in an already successful UTC hour are skipped; ordinary manual runs always check immediately. Each refresh reads the latest `main` after acquiring the shared concurrency lock. Missing output files are rebuilt even within an already checked hour. Transient failures get three attempts, and a failed check preserves the previous valid feed pair and remains eligible for retry.
 
 **Last check:** [refresh-status.json](data/refresh-status.json) records the last attempt, last successful check, source revision, result, and Actions run link. It is updated even when upstream names have not changed. `changed` and `metadata_changed` separately report changes to the name-only and combined feeds. The Actions summary also shows the actual last successful check. The modification time of either gzip indicates a content change, not the last check.
 
-GitHub schedules can be delayed or dropped; this is automatic retry, not an exact-time guarantee. Public-repository inactivity can disable schedules after 60 days. Check Actions and re-enable a disabled workflow if needed. The owner PC and Switch do not need to stay on.
+GitHub schedules and hosted runners can still be delayed or unavailable. The relay reduces dependence on cron delivery and cannot guarantee an exact start or success time during a platform outage. Standard hosted runners for public repositories are free under GitHub's current billing policy. One hosted relay normally waits between hourly checks. The owner PC and Switch do not need to stay on. To stop automatic checking, disable both workflows in Actions.
 
 Older clients keep their original endpoint and name-only format. New clients use the combined endpoint for dates and names. Both files come from the same source commit. If source data has not changed, neither gzip is rewritten; only the check status changes.
 
@@ -38,4 +40,4 @@ To also record status and retry transient failures:
 python tools/refresh_dlc_names.py --metadata-output data/game-metadata.json.gz
 ```
 
-Do not grant this repository access to private files or add personal tokens. The workflow uses the repository-scoped temporary `GITHUB_TOKEN` only to commit the generated public metadata.
+Do not grant this repository access to private files or add personal tokens. The repository-scoped temporary `GITHUB_TOKEN` commits public metadata and dispatches the two metadata workflows. The relay's checkout does not persist Git credentials.

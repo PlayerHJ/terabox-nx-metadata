@@ -1,0 +1,35 @@
+name: Hourly metadata relay
+on:
+  workflow_dispatch:
+    inputs:
+      test_handoff:
+        description: Verify one automatic handoff after 60 seconds
+        type: boolean
+        default: false
+  schedule:
+    - cron: '7 * * * *'
+permissions:
+  contents: read
+  actions: write
+concurrency:
+  group: metadata-hourly-relay
+  cancel-in-progress: false
+jobs:
+  relay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Request check and hand off at the next hour
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERIFY_HANDOFF: ${{ inputs.test_handoff }}
+        run: |
+          if [ "$VERIFY_HANDOFF" = true ]; then
+            python tools/hourly_relay.py --test-handoff
+          else
+            python tools/hourly_relay.py
+          fi
