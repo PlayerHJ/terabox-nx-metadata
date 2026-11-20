@@ -1,11 +1,11 @@
 {
   "catalog_sha256": "88b76990f886a56e226e5b4fec3c7831771bac43c6e66321877b2f00cc3fd74c",
-  "changed": true,
+  "changed": false,
   "count": 9680,
   "gzip_bytes": 9397531,
-  "last_attempt_utc": "2026-11-20T15:02:32+00:00",
-  "last_success_hour_utc": "2026-11-20T15Z",
-  "last_success_utc": "2026-11-20T15:02:37+00:00",
+  "last_attempt_utc": "2026-11-20T16:03:30+00:00",
+  "last_success_hour_utc": "2026-11-20T16Z",
+  "last_success_utc": "2026-11-20T16:03:30+00:00",
   "raw_bytes": 24882174,
   "result": "success",
   "revisions": {
