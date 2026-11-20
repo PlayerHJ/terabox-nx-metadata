@@ -14,6 +14,7 @@ on:
     paths:
       - tools/build_dlc_names.py
       - tools/build_game_metadata.py
+      - tools/build_shop_catalog.py
       - tools/refresh_dlc_names.py
       - tools/hourly_relay.py
       - .github/workflows/refresh.yml
@@ -72,6 +73,32 @@ jobs:
       - name: Report actual refresh result
         if: always()
         run: python tools/refresh_dlc_names.py --write-summary
+      - name: Check compact Switch catalog
+        id: shop
+        if: always() && !cancelled()
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ] && [ "$METADATA_PERIODIC" != true ]; then
+            python tools/build_shop_catalog.py . --manual
+          else
+            python tools/build_shop_catalog.py .
+          fi
+      - name: Publish compact catalog check
+        if: always() && steps.shop.outcome != 'skipped' && !cancelled()
+        env:
+          SHOP_OUTCOME: ${{ steps.shop.outcome }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          if [ -e data/shop-refresh-status.json ]; then
+            git add -- data/shop-refresh-status.json
+          fi
+          if [ "$SHOP_OUTCOME" = success ] && [ -e data/shop-catalog.jsonl.gz ]; then
+            git add -- data/shop-catalog.jsonl.gz
+          fi
+          if ! git diff --cached --quiet; then
+            git commit -m 'Check compact Switch catalog'
+            git push
+          fi
       - name: Recover an inactive hourly relay
         if: always()
         env:

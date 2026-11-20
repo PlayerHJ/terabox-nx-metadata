@@ -12,6 +12,12 @@ Source: [borntohonk/titledb](https://github.com/borntohonk/titledb), using `titl
 
 `games` maps application title IDs to their own product release date (`YYYYMMDD`). A valid Korean-region date is preferred, then English, Japanese, and default source data from the same upstream commit. When multiple regional records share an ID, the canonical product's NSU ID is preferred within that region. Records without an ID are linked only through an exact canonical NSU ID. Patches, DLC, similarly named games, and version observation dates never supply a missing game's release date. Dates are shown as supplied by the source, including scheduled future releases; unavailable dates are omitted.
 
+## Compact Switch catalog
+
+[shop-catalog.jsonl.gz](data/shop-catalog.jsonl.gz) contains the catalog title IDs, Korean-first text with English fallback, genres, image URLs, release metadata, offer statistics, and exact TitleDB versions for listed games. It uses data from [TitleDB](https://github.com/borntohonk/titledb), [the Switch catalog](https://github.com/Langegen/switch-game-collection), and [its statistics](https://github.com/Langegen/switch-games). Each input repository is read at a pinned revision. The file contains no image binaries or download links.
+
+The existing hourly workflow also checks this catalog. [shop-refresh-status.json](data/shop-refresh-status.json) records the check time, source revisions, size, and hash. Identical content keeps the same bytes. Failed refreshes keep the previous catalog and can retry within the same hour. The original DLC endpoints keep their existing format and independent status.
+
 ## Automatic refresh
 
 GitHub Actions aims for one successful upstream check per UTC hour. **Hourly metadata relay** immediately requests a guarded refresh, then waits on a GitHub-hosted runner until minute **03** of the next UTC hour and explicitly starts its successor. This continues across hours even when GitHub omits cron events. One relay runs at a time, with a 75-minute job limit. It uses the repository's temporary token with Actions write permission to dispatch only these metadata workflows.
