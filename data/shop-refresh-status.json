@@ -3,11 +3,11 @@
   "changed": false,
   "count": 9681,
   "gzip_bytes": 9399842,
-  "last_attempt_utc": "2026-11-21T14:03:24+00:00",
+  "last_attempt_utc": "2026-11-21T15:04:23+00:00",
   "last_success_hour_utc": "2026-11-21T14Z",
   "last_success_utc": "2026-11-21T14:03:25+00:00",
   "raw_bytes": 24883817,
-  "result": "success",
+  "result": "failure",
   "revisions": {
     "catalog": "78108aa66896c40add42e349f6db7cf37b1bea5b",
     "statistics": "54e30673de492df5abc3b6fa4f9c33d99b8740f0",
