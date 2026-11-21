@@ -1,16 +1,16 @@
 {
-  "catalog_sha256": "a97b9da001611e871c7da8d4a17c8415d781c1f5fdbbde640a5deb8e205d7d25",
-  "changed": false,
+  "catalog_sha256": "82174643d48847ca4ad3efd1c3b6bb24fd08ac7c290c8ded7f2b61a0bd97f56d",
+  "changed": true,
   "count": 9681,
-  "gzip_bytes": 9398929,
-  "last_attempt_utc": "2026-11-21T05:04:27+00:00",
-  "last_success_hour_utc": "2026-11-21T04Z",
-  "last_success_utc": "2026-11-21T04:03:24+00:00",
-  "raw_bytes": 24883766,
-  "result": "failure",
+  "gzip_bytes": 9399233,
+  "last_attempt_utc": "2026-11-21T06:03:26+00:00",
+  "last_success_hour_utc": "2026-11-21T06Z",
+  "last_success_utc": "2026-11-21T06:03:35+00:00",
+  "raw_bytes": 24883680,
+  "result": "success",
   "revisions": {
     "catalog": "177bf9559829299cab707d4726e156753179647f",
-    "statistics": "2666b153dd45ab5cb832d213a62a89b6c7ce4df3",
+    "statistics": "cb9c8a8a20739c79f1d7544e816f3d43e69d276c",
     "title_db": "c27a8c9ba2f027d3c077cad2c43bbc605deabdd3"
   }
 }
