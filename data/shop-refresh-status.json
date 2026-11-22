@@ -3,13 +3,13 @@
   "changed": false,
   "count": 9682,
   "gzip_bytes": 9402248,
-  "last_attempt_utc": "2026-11-22T17:03:20+00:00",
-  "last_success_hour_utc": "2026-11-22T17Z",
-  "last_success_utc": "2026-11-22T17:03:20+00:00",
+  "last_attempt_utc": "2026-11-22T18:03:22+00:00",
+  "last_success_hour_utc": "2026-11-22T18Z",
+  "last_success_utc": "2026-11-22T18:03:37+00:00",
   "raw_bytes": 24885729,
   "result": "success",
   "revisions": {
-    "catalog": "c85dd052778867604a2e40205a0b38f60113aa63",
+    "catalog": "30ccf74f15b49764d6288998a922500bde1dbc97",
     "statistics": "cc4bcdea29bf054efc9dc26b2cfb12766e18d069",
     "title_db": "c27a8c9ba2f027d3c077cad2c43bbc605deabdd3"
   }
