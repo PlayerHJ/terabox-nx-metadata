@@ -14,7 +14,7 @@ Source: [borntohonk/titledb](https://github.com/borntohonk/titledb), using `titl
 
 ## Compact Switch catalog
 
-Game icons are matched by exact title ID against the Korean, US English, UK English, Japanese, and Hong Kong Chinese TitleDB catalogs, in that order. The catalog includes Nintendo `iconUrl` entries only. Missing images use the application's generic icon.
+Game icons are matched by exact title ID against the Korean, US English, UK English, Japanese, Hong Kong Chinese, and worldwide TitleDB catalogs, in that order. The catalog includes Nintendo `iconUrl` entries only. Missing images use the application's generic icon. The worldwide index also supplies edition regions and product identities. An additional ID in a bundle gets a separate card only when it has retail product metadata or represents a release of its own.
 
 [shop-catalog.jsonl.gz](data/shop-catalog.jsonl.gz) contains the catalog title IDs, Korean-first text with English fallback, genres, image URLs, release metadata, offer statistics, and exact TitleDB versions for listed games. It uses data from [TitleDB](https://github.com/borntohonk/titledb), [the Switch catalog](https://github.com/Langegen/switch-game-collection), and [its statistics](https://github.com/Langegen/switch-games). Each input repository is read at a pinned revision. The file contains no image binaries or download links.
 

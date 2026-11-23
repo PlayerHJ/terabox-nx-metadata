@@ -9,6 +9,8 @@ from itertools import chain
 import json
 from pathlib import Path
 import re
+import shutil
+import subprocess
 import sys
 import time
 from urllib.parse import parse_qs, urlsplit
@@ -24,9 +26,11 @@ SOURCES = {
 MIB = 1024 * 1024
 WIRE_LIMIT = 12 * MIB
 RAW_LIMIT = 48 * MIB
+POLICY = "exact-products-v2"
 TITLE = re.compile(r"0100[0-9a-f]{12}", re.IGNORECASE)
 DIGITS = re.compile(r"[0-9]+")
 OFFICIAL_ICON = re.compile(r"https://img-eshop\.cdn\.nintendo\.net/i/[0-9a-f]{64}\.jpg")
+DEMO_TAG = re.compile(r"\[(?:demo|trial|체험판|体験版)\]|\((?:demo|trial|체험판|体験版)\)", re.IGNORECASE)
 MEDIA_HOSTS = (
     "nintendo.net", "nintendo.com", "nintendo.co.jp", "ntower.de", "imgur.com",
     "radikal.ru", "rutracker.org", "fastpic.org", "postimg.cc", "ibb.co",
@@ -175,6 +179,7 @@ def base_game(row, name):
 
 def catalog_rows(records, statistics):
     result = {}
+    primary_ids = set()
     for row in records:
         if not isinstance(row, dict):
             continue
@@ -185,36 +190,54 @@ def catalog_rows(records, statistics):
         topic = short(row.get("topic_id"), 20)
         magnet = short(row.get("magnet"), 8192)
         if (not name or not container
-                or "homebrew" in searchable or "[demo]" in searchable or not DIGITS.fullmatch(topic)
+                or "homebrew" in searchable or DEMO_TAG.search(name) or not DIGITS.fullmatch(topic)
                 or not magnet.startswith("magnet:?xt=urn:btih:") or "\n" in magnet or "\r" in magnet):
             continue
         stat = statistics.get(topic, {})
         if not isinstance(stat, dict):
             stat = {}
-        for title, version, display in offer_versions(row):
-            if title not in result:
-                result[title] = base_game(row, name.split(" [", 1)[0])
+        entries = offer_versions(row)
+        if not entries:
+            continue
+        primary = application_id(row.get("title_id")) or entries[0][0]
+        for title, version, display in entries:
+            if title not in result or title == primary and title not in primary_ids:
+                game = base_game(row, name.split(" [", 1)[0])
+                if title in result:
+                    game["offers"] = result[title]["offers"]
+                if title != primary:
+                    game["description"], game["screenshots"] = "", []
+                result[title] = game
             offers = result[title]["offers"]
             if len(offers) < 24 and all(offer[0] != topic for offer in offers):
                 offers.append([topic, version, display, byte_size(short(row.get("size"), 32)),
                                bounded_int(stat.get("seeds")), bounded_int(stat.get("downloads")),
                                date_stamp(stat.get("registered_at")), date_stamp(stat.get("updated_at")), container])
-    return result
+        primary_ids.add(primary)
+    return result, primary_ids
 
 
-def locale(records, catalog, *, icons_only=False):
+def locale(records, catalog, products, demos, *, icons_only=False):
     merged = {}
     for row in records.values():
         if not isinstance(row, dict):
             continue
         title = application_id(row.get("id"))
-        if title not in catalog or row.get("isDemo") is True:
+        if title not in catalog:
             continue
+        if row.get("isDemo") is True:
+            demos.add(title)
+            continue
+        if re.fullmatch(r"700100[0-9]{8}", str(row.get("nsuId", ""))) and short(row.get("name"), 360).strip():
+            products.add(title)
         game = merged.setdefault(title, {})
         icon = media(row.get("iconUrl"))
         if OFFICIAL_ICON.fullmatch(icon):
             game.setdefault("cover", icon)
         if icons_only:
+            name = short(row.get("name"), 360).strip()
+            if name:
+                game.setdefault("name", name)
             continue
         fields = row.get("languages")
         languages = unique(value.lower().split("-", 1)[0] for value in fields
@@ -258,17 +281,20 @@ def version_rows(raw, catalog):
     return result
 
 
-def generate(source, korean, english, japanese, british, hong_kong, statistics, top, versions):
+def generate(source, korean, english, japanese, british, hong_kong, worldwide, statistics, top, versions):
     if not isinstance(source, list) or not isinstance(top, list) or not top or not all(
-        isinstance(dataset, dict) and dataset for dataset in (korean, english, japanese, british, hong_kong, statistics)
+        isinstance(dataset, dict) and dataset for dataset in (korean, english, japanese, british, hong_kong, worldwide, statistics)
     ):
         raise ValueError("Invalid upstream datasets")
-    catalog = catalog_rows(source, statistics)
-    ko = locale(korean, catalog)
-    en = locale(english, catalog)
-    ja = locale(japanese, catalog, icons_only=True)
-    gb = locale(british, catalog, icons_only=True)
-    hk = locale(hong_kong, catalog, icons_only=True)
+    catalog, primary = catalog_rows(source, statistics)
+    products, demos = set(), set()
+    ko = locale(korean, catalog, products, demos)
+    en = locale(english, catalog, products, demos)
+    ja = locale(japanese, catalog, products, demos, icons_only=True)
+    gb = locale(british, catalog, products, demos, icons_only=True)
+    hk = locale(hong_kong, catalog, products, demos, icons_only=True)
+    global_rows = locale(worldwide, catalog, products, demos)
+    catalog = {title: game for title, game in catalog.items() if title in products or title in primary and title not in demos}
     release_versions = version_rows(versions, catalog)
     ranks = {}
     for rank, row in enumerate(top, 1):
@@ -276,19 +302,32 @@ def generate(source, korean, english, japanese, british, hong_kong, statistics, 
             ranks.setdefault(application_id(row.get("title_id")), rank)
     if not 1000 <= len(catalog) <= 18000 or min(len(ko), len(en)) < 100 or len(release_versions) < 1000:
         raise ValueError("Incomplete upstream datasets")
-    yield {"schema": 1, "count": len(catalog), "official_icons": True}
+    yield {"schema": 1, "count": len(catalog), "official_icons": True, "product_policy": POLICY}
     for title, game in catalog.items():
         english_fields = dict(en.get(title, {}))
         korean_fields = dict(ko.get(title, {}))
-        icons = unique(url for fields in (korean_fields, english_fields, gb.get(title, {}), ja.get(title, {}), hk.get(title, {}))
+        global_fields = global_rows.get(title, {})
+        icons = unique(url for fields in (korean_fields, english_fields, gb.get(title, {}), ja.get(title, {}), hk.get(title, {}), global_fields)
                        if (url := fields.get("cover")))
         game["genres"] = unique(korean_fields.pop("genres", []) + english_fields.pop("genres", []) + game["genres"])[:24]
         for key in ("name", "description"):
             if key in english_fields and not has_hangul(korean_fields.get(key, "")):
                 korean_fields.pop(key, None)
+        for key, value in global_fields.items():
+            if key != "genres" and (not game.get(key) or title not in primary):
+                game[key] = value
+        if title not in primary:
+            for fields in (gb.get(title, {}), ja.get(title, {}), hk.get(title, {})):
+                if fields.get("name"):
+                    game["name"] = fields["name"]
+                    break
         game.update(english_fields)
         game.update(korean_fields)
         game["cover"], game["fallback_cover"] = (icons + ["", ""])[:2]
+        product = worldwide.get(f"{title:016X}")
+        region = product.get("region") if isinstance(product, dict) else None
+        if isinstance(region, str) and re.fullmatch(r"[A-Z]{2}", region):
+            game["region"] = region
         game["title"] = f"{title:016X}"
         game["rank"] = min(ranks.get(title, 0), 1000)
         game["versions"] = sorted(release_versions.get(title, {}).items())
@@ -335,7 +374,7 @@ def refresh(root, manual):
     except (OSError, ValueError):
         previous = {}
     current = output.read_bytes() if output.exists() else b""
-    valid = (bool(current) and previous.get("official_icons") is True
+    valid = (bool(current) and previous.get("product_policy") == POLICY
              and hashlib.sha256(current).hexdigest() == previous.get("catalog_sha256"))
     if valid and not manual and previous.get("last_success_hour_utc") == hour and previous.get("result") == "success":
         return
@@ -355,25 +394,33 @@ def refresh(root, manual):
 
     for attempt in range(2):
         try:
-            with ThreadPoolExecutor(max_workers=9) as pool:
+            with ThreadPoolExecutor(max_workers=10) as pool:
                 heads = dict(zip(SOURCES, pool.map(revision, SOURCES.values())))
                 if not valid or heads != previous.get("revisions") or manual:
                     args = (("catalog", "EN_catalog.json", 42 * MIB), ("title_db", "KR.ko.json", 85 * MIB),
                             ("title_db", "US.en.json", 125 * MIB), ("title_db", "JP.ja.json", 125 * MIB),
                             ("title_db", "GB.en.json", 125 * MIB), ("title_db", "HK.zh.json", 125 * MIB),
                             ("statistics", "switch_games_stats.json", 4 * MIB),
-                            ("catalog", "top_100.json", 4 * MIB), ("title_db", "versions.txt", 8 * MIB))
+                            ("catalog", "top_100.json", 4 * MIB), ("title_db", "versions.txt", 8 * MIB),
+                            ("title_db", "titles.json.zst", 32 * MIB))
                     tasks = [pool.submit(read, *arg) for arg in args]
-                    *datasets, versions = [task.result() for task in tasks]
-                    data = generate(*(json.loads(value) for value in datasets), versions)
+                    *datasets, versions, compressed = [task.result() for task in tasks]
+                    decoder = shutil.which("zstd") or "C:/devkitPro/msys2/usr/bin/zstd.exe"
+                    decoded = subprocess.run([decoder, "-d", "-q", "-c"], input=compressed,
+                                             capture_output=True, check=True, timeout=60).stdout
+                    if len(decoded) > 256 * MIB:
+                        raise ValueError("Worldwide TitleDB exceeds decoded limits")
+                    *localized, statistics, top = map(json.loads, datasets)
+                    data = generate(*localized, json.loads(decoded), statistics, top, versions)
                     header = next(data)
-                    record.update(write_catalog(output, chain((header,), data)), count=header["count"], official_icons=True)
+                    record.update(write_catalog(output, chain((header,), data)), count=header["count"],
+                                  official_icons=True, product_policy=POLICY)
                 else:
                     record["changed"] = False
             record.update(result="success", revisions=heads, last_success_hour_utc=hour,
                           last_success_utc=datetime.now(timezone.utc).isoformat(timespec="seconds"))
             break
-        except (OSError, ValueError, KeyError, TypeError, OverflowError) as error:
+        except (OSError, ValueError, KeyError, TypeError, OverflowError, subprocess.SubprocessError) as error:
             print(f"Catalog attempt {attempt + 1}: {type(error).__name__}: {error}", file=sys.stderr)
             record.update(result="failure", changed=False)
             if attempt == 0:
