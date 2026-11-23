@@ -26,6 +26,7 @@ WIRE_LIMIT = 12 * MIB
 RAW_LIMIT = 48 * MIB
 TITLE = re.compile(r"0100[0-9a-f]{12}", re.IGNORECASE)
 DIGITS = re.compile(r"[0-9]+")
+OFFICIAL_ICON = re.compile(r"https://img-eshop\.cdn\.nintendo\.net/i/[0-9a-f]{64}\.jpg")
 MEDIA_HOSTS = (
     "nintendo.net", "nintendo.com", "nintendo.co.jp", "ntower.de", "imgur.com",
     "radikal.ru", "rutracker.org", "fastpic.org", "postimg.cc", "ibb.co",
@@ -168,7 +169,7 @@ def base_game(row, name):
         "languages": [code for code, label, tag in LANGUAGES if label in interface or f"[{tag}]" in interface],
         "release": release_date(short(row.get("year"), 60)), "players": 1 if multiplayer == "no" else max(players, default=0),
         "genres": genres(row), "screenshots": screenshots(row),
-        "cover": media(row.get("cover")), "fallback_cover": media(row.get("cover")), "offers": [],
+        "cover": "", "fallback_cover": "", "offers": [],
     }
 
 
@@ -201,7 +202,7 @@ def catalog_rows(records, statistics):
     return result
 
 
-def locale(records, catalog):
+def locale(records, catalog, *, icons_only=False):
     merged = {}
     for row in records.values():
         if not isinstance(row, dict):
@@ -210,6 +211,11 @@ def locale(records, catalog):
         if title not in catalog or row.get("isDemo") is True:
             continue
         game = merged.setdefault(title, {})
+        icon = media(row.get("iconUrl"))
+        if OFFICIAL_ICON.fullmatch(icon):
+            game.setdefault("cover", icon)
+        if icons_only:
+            continue
         fields = row.get("languages")
         languages = unique(value.lower().split("-", 1)[0] for value in fields
                            if isinstance(value, str) and 0 < len(value) <= 24) if isinstance(fields, list) else []
@@ -219,7 +225,6 @@ def locale(records, catalog):
             ("description", description(row)), ("languages", [lang for lang in languages if lang]),
             ("release", date if 20000101 <= date <= 21001231 else 0),
             ("players", bounded_int(row.get("numberOfPlayers"), 99)), ("screenshots", screenshots(row)),
-            ("cover", media(row.get("iconUrl")) or media(row.get("bannerUrl"))),
         ):
             if value:
                 game.setdefault(key, value)
@@ -253,14 +258,17 @@ def version_rows(raw, catalog):
     return result
 
 
-def generate(source, korean, english, statistics, top, versions):
+def generate(source, korean, english, japanese, british, hong_kong, statistics, top, versions):
     if not isinstance(source, list) or not isinstance(top, list) or not top or not all(
-        isinstance(dataset, dict) and dataset for dataset in (korean, english, statistics)
+        isinstance(dataset, dict) and dataset for dataset in (korean, english, japanese, british, hong_kong, statistics)
     ):
         raise ValueError("Invalid upstream datasets")
     catalog = catalog_rows(source, statistics)
     ko = locale(korean, catalog)
     en = locale(english, catalog)
+    ja = locale(japanese, catalog, icons_only=True)
+    gb = locale(british, catalog, icons_only=True)
+    hk = locale(hong_kong, catalog, icons_only=True)
     release_versions = version_rows(versions, catalog)
     ranks = {}
     for rank, row in enumerate(top, 1):
@@ -268,16 +276,19 @@ def generate(source, korean, english, statistics, top, versions):
             ranks.setdefault(application_id(row.get("title_id")), rank)
     if not 1000 <= len(catalog) <= 18000 or min(len(ko), len(en)) < 100 or len(release_versions) < 1000:
         raise ValueError("Incomplete upstream datasets")
-    yield {"schema": 1, "count": len(catalog)}
+    yield {"schema": 1, "count": len(catalog), "official_icons": True}
     for title, game in catalog.items():
         english_fields = dict(en.get(title, {}))
         korean_fields = dict(ko.get(title, {}))
+        icons = unique(url for fields in (korean_fields, english_fields, gb.get(title, {}), ja.get(title, {}), hk.get(title, {}))
+                       if (url := fields.get("cover")))
         game["genres"] = unique(korean_fields.pop("genres", []) + english_fields.pop("genres", []) + game["genres"])[:24]
         for key in ("name", "description"):
             if key in english_fields and not has_hangul(korean_fields.get(key, "")):
                 korean_fields.pop(key, None)
         game.update(english_fields)
         game.update(korean_fields)
+        game["cover"], game["fallback_cover"] = (icons + ["", ""])[:2]
         game["title"] = f"{title:016X}"
         game["rank"] = min(ranks.get(title, 0), 1000)
         game["versions"] = sorted(release_versions.get(title, {}).items())
@@ -324,7 +335,8 @@ def refresh(root, manual):
     except (OSError, ValueError):
         previous = {}
     current = output.read_bytes() if output.exists() else b""
-    valid = bool(current) and hashlib.sha256(current).hexdigest() == previous.get("catalog_sha256")
+    valid = (bool(current) and previous.get("official_icons") is True
+             and hashlib.sha256(current).hexdigest() == previous.get("catalog_sha256"))
     if valid and not manual and previous.get("last_success_hour_utc") == hour and previous.get("result") == "success":
         return
     record = dict(previous, last_attempt_utc=now.isoformat(timespec="seconds"))
@@ -343,17 +355,19 @@ def refresh(root, manual):
 
     for attempt in range(2):
         try:
-            with ThreadPoolExecutor(max_workers=6) as pool:
+            with ThreadPoolExecutor(max_workers=9) as pool:
                 heads = dict(zip(SOURCES, pool.map(revision, SOURCES.values())))
                 if not valid or heads != previous.get("revisions") or manual:
                     args = (("catalog", "EN_catalog.json", 42 * MIB), ("title_db", "KR.ko.json", 85 * MIB),
-                            ("title_db", "US.en.json", 125 * MIB), ("statistics", "switch_games_stats.json", 4 * MIB),
+                            ("title_db", "US.en.json", 125 * MIB), ("title_db", "JP.ja.json", 125 * MIB),
+                            ("title_db", "GB.en.json", 125 * MIB), ("title_db", "HK.zh.json", 125 * MIB),
+                            ("statistics", "switch_games_stats.json", 4 * MIB),
                             ("catalog", "top_100.json", 4 * MIB), ("title_db", "versions.txt", 8 * MIB))
                     tasks = [pool.submit(read, *arg) for arg in args]
                     *datasets, versions = [task.result() for task in tasks]
                     data = generate(*(json.loads(value) for value in datasets), versions)
                     header = next(data)
-                    record.update(write_catalog(output, chain((header,), data)), count=header["count"])
+                    record.update(write_catalog(output, chain((header,), data)), count=header["count"], official_icons=True)
                 else:
                     record["changed"] = False
             record.update(result="success", revisions=heads, last_success_hour_utc=hour,
