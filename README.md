@@ -18,6 +18,10 @@ Game icons are matched by exact title ID against the Korean, US English, UK Engl
 
 [shop-catalog.jsonl.gz](data/shop-catalog.jsonl.gz) contains the catalog title IDs, Korean-first text with English fallback, genres, image URLs, release metadata, offer statistics, and exact TitleDB versions for listed games. It uses data from [TitleDB](https://github.com/borntohonk/titledb), [the Switch catalog](https://github.com/Langegen/switch-game-collection), and [its statistics](https://github.com/Langegen/switch-games). Each input repository is read at a pinned revision. The file contains no image binaries or download links.
 
+## Game ratings and completion times
+
+The separate `data/shop-metrics.json.gz` feed combines [IGDB](https://www.igdb.com/) user ratings and average completion times with Nintendo Switch application IDs. The daily GitHub Actions workflow uses `IGDB_CLIENT_ID` and `IGDB_CLIENT_SECRET` repository secrets. It matches Nintendo product identifiers first and uses exact localized names with Switch release evidence when product identifiers have no match. It omits ambiguous matches and retains the last published feed when a refresh fails. The catalog and DLC refreshes have their own schedule.
+
 The existing hourly workflow also checks this catalog. [shop-refresh-status.json](data/shop-refresh-status.json) records the check time, source revisions, size, and hash. Identical content keeps the same bytes. Failed refreshes keep the previous catalog and can retry within the same hour. The original DLC endpoints keep their existing format and independent status.
 
 ## Automatic refresh

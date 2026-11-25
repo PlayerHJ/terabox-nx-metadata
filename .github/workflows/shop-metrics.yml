@@ -1,0 +1,48 @@
+name: Refresh game ratings and completion times
+on:
+  schedule:
+    - cron: '41 4 * * *'
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: shop-game-metrics
+  cancel-in-progress: false
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify title matching and feed format
+        run: python tools/test_shop_metrics.py
+      - name: Refresh game ratings and completion times
+        env:
+          IGDB_CLIENT_ID: ${{ secrets.IGDB_CLIENT_ID }}
+          IGDB_CLIENT_SECRET: ${{ secrets.IGDB_CLIENT_SECRET }}
+        run: python tools/build_shop_metrics.py .
+      - name: Publish updated feed
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- data/shop-metrics.json.gz
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m 'Refresh game ratings and completion times'
+          for delay in 0 2 4 8; do
+            sleep "$delay"
+            if git fetch origin main && git rebase origin/main && git push origin HEAD:main; then
+              exit 0
+            fi
+            if [ -d .git/rebase-merge ] || [ -d .git/rebase-apply ]; then
+              git rebase --abort
+              exit 1
+            fi
+          done
+          exit 1
