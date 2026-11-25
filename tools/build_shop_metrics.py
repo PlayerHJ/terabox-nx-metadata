@@ -3,6 +3,7 @@
 from collections import defaultdict
 from datetime import date, datetime, timezone
 import gzip
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -24,6 +25,8 @@ NINTENDO_HOSTS = {"www.nintendo.com", "www.nintendo.co.jp", "store-jp.nintendo.c
                   "www.nintendo.co.kr", "store.nintendo.co.kr"}
 LOCALES = ("KR.ko.json", "US.en.json", "GB.en.json", "JP.ja.json", "HK.zh.json")
 EPOCH_ORDINAL = date(1970, 1, 1).toordinal()
+FEED_PATH = "data/shop-metrics.json.gz"
+STATUS_PATH = "data/shop-metrics-status.json"
 GAME_FIELDS = ("id,name,rating,rating_count,alternative_names.name,game_localizations.name,"
                "release_dates.platform,release_dates.date,"
                "involved_companies.publisher,involved_companies.company.name,"
@@ -270,18 +273,44 @@ def refresh(root, api):
             if rank > times.get(ident, ((0, 0), ()))[0]:
                 times[ident] = rank, (minutes(row.get("hastily")), minutes(row.get("normally")))
     wire, count = encode_metrics(matches, games, {key: values for key, (_, values) in times.items()})
-    output = root / "data/shop-metrics.json.gz"
+    output = root / FEED_PATH
     if not output.exists() or output.read_bytes() != wire:
         atomic_write(output, wire)
     print(f"IGDB supplement: {count} title IDs, {len(wire)} compressed bytes")
+    return wire
+
+
+def succeeded_this_hour(root, hour):
+    try:
+        status = json.loads((root / STATUS_PATH).read_text(encoding="utf-8"))
+        return (isinstance(status, dict) and status.get("last_success_hour_utc") == hour
+                and status.get("metrics_sha256") == hashlib.sha256((root / FEED_PATH).read_bytes()).hexdigest())
+    except (OSError, ValueError):
+        return False
+
+
+def refresh_when_due(root, create_api, *, periodic, now):
+    hour = now.astimezone(timezone.utc).strftime("%Y-%m-%dT%HZ")
+    if periodic and succeeded_this_hour(root, hour):
+        print(f"IGDB supplement already refreshed for {hour}")
+        return
+    wire = refresh(root, create_api())
+    status = {"last_success_hour_utc": hour, "metrics_sha256": hashlib.sha256(wire).hexdigest()}
+    atomic_write(root / STATUS_PATH, (json.dumps(status, indent=2) + "\n").encode("utf-8"))
+
+
+def authenticated_api():
+    client_id = os.environ.get("IGDB_CLIENT_ID")
+    secret = os.environ.get("IGDB_CLIENT_SECRET")
+    if not client_id or not secret:
+        raise ValueError("IGDB credentials are required for a live refresh")
+    return Igdb(client_id, secret)
 
 
 if __name__ == "__main__":
-    if not (client_id := os.environ.get("IGDB_CLIENT_ID")) or not (secret := os.environ.get("IGDB_CLIENT_SECRET")):
-        print("IGDB credentials are required for a live refresh", file=sys.stderr)
-        sys.exit(1)
     try:
-        refresh(Path(sys.argv[1]), Igdb(client_id, secret))
+        refresh_when_due(Path(sys.argv[1]), authenticated_api, periodic="--periodic" in sys.argv[2:],
+                         now=datetime.now(timezone.utc))
     except (OSError, KeyError, ValueError, TypeError, AttributeError) as error:
         print(f"IGDB refresh failed ({type(error).__name__}): {error}", file=sys.stderr)
         sys.exit(1)

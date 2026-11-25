@@ -1,10 +1,15 @@
 """Offline fixtures for the IGDB publication workflow."""
 
+from datetime import datetime, timezone
 import gzip
 import json
+from pathlib import Path
+from tempfile import TemporaryDirectory
 import unittest
+from unittest.mock import Mock, patch
 
-from build_shop_metrics import encode_metrics, match_games, minutes, nintendo_keys
+from build_shop_metrics import (FEED_PATH, STATUS_PATH, encode_metrics, match_games, minutes,
+                                nintendo_keys, refresh_when_due)
 
 
 FIRST = "0100123456780000"
@@ -60,6 +65,29 @@ class ShopMetricsTests(unittest.TestCase):
         self.assertEqual(wire, encode_metrics(dict(reversed(list(matches.items()))), games, times)[0])
         with self.assertRaises(ValueError):
             encode_metrics({}, games, times)
+
+    def test_hourly_refresh_retries_failure_and_skips_after_success(self):
+        wire, _ = encode_metrics({FIRST: 7}, {7: {"rating": 87, "rating_count": 120}}, {})
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            feed, status = root / FEED_PATH, root / STATUS_PATH
+            feed.parent.mkdir()
+            feed.write_bytes(wire)
+            create_api = Mock()
+            with patch("build_shop_metrics.refresh", side_effect=[ValueError("offline"), wire, wire, wire]):
+                start = datetime(2026, 11, 25, 2, 3, tzinfo=timezone.utc)
+                with self.assertRaisesRegex(ValueError, "offline"):
+                    refresh_when_due(root, create_api, periodic=True, now=start)
+                self.assertFalse(status.exists())
+                self.assertEqual(feed.read_bytes(), wire)
+                refresh_when_due(root, create_api, periodic=True, now=start.replace(minute=13))
+                for minute in (23, 33, 43, 53):
+                    refresh_when_due(root, create_api, periodic=True, now=start.replace(minute=minute))
+                self.assertEqual(create_api.call_count, 2)
+                refresh_when_due(root, create_api, periodic=False, now=start.replace(minute=53))
+                refresh_when_due(root, create_api, periodic=True, now=start.replace(hour=3))
+                self.assertEqual(create_api.call_count, 4)
+                self.assertEqual(json.loads(status.read_text("utf-8"))["last_success_hour_utc"], "2026-11-25T03Z")
 
 
 if __name__ == "__main__":

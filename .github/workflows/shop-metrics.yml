@@ -1,8 +1,14 @@
 name: Refresh game ratings and completion times
 on:
   schedule:
-    - cron: '41 * * * *'
+    # Retry a missed or failed refresh within the same UTC hour.
+    - cron: '3,13,23,33,43,53 * * * *'
   workflow_dispatch:
+    inputs:
+      periodic:
+        description: Use the hourly schedule's duplicate check
+        type: boolean
+        default: false
 permissions:
   contents: write
 concurrency:
@@ -25,12 +31,18 @@ jobs:
         env:
           IGDB_CLIENT_ID: ${{ secrets.IGDB_CLIENT_ID }}
           IGDB_CLIENT_SECRET: ${{ secrets.IGDB_CLIENT_SECRET }}
-        run: python tools/build_shop_metrics.py .
+          SHOP_METRICS_PERIODIC: ${{ github.event_name == 'schedule' || inputs.periodic }}
+        run: |
+          if [ "$SHOP_METRICS_PERIODIC" = true ]; then
+            python tools/build_shop_metrics.py . --periodic
+          else
+            python tools/build_shop_metrics.py .
+          fi
       - name: Publish updated feed
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -- data/shop-metrics.json.gz
+          git add -- data/shop-metrics.json.gz data/shop-metrics-status.json
           if git diff --cached --quiet; then
             exit 0
           fi
