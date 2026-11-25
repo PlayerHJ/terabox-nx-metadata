@@ -3,15 +3,15 @@
   "changed": false,
   "count": 9657,
   "gzip_bytes": 9513389,
-  "last_attempt_utc": "2026-11-24T23:03:20+00:00",
-  "last_success_hour_utc": "2026-11-24T23Z",
-  "last_success_utc": "2026-11-24T23:03:33+00:00",
+  "last_attempt_utc": "2026-11-25T00:03:22+00:00",
+  "last_success_hour_utc": "2026-11-25T00Z",
+  "last_success_utc": "2026-11-25T00:03:35+00:00",
   "official_icons": true,
   "product_policy": "exact-products-v2",
   "raw_bytes": 24282915,
   "result": "success",
   "revisions": {
-    "catalog": "4e476f65dd53fc85a1b7e2723802189b7a8d8ce3",
+    "catalog": "3befcb35f77eb64ea451a6263339157b6a3ea349",
     "statistics": "5b5ed5976ad8ae95157534290e09d3112ec3d895",
     "title_db": "4a055e2451e765a860b4b6ade76ea4df6b036004"
   }
