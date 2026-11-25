@@ -1,15 +1,15 @@
 {
   "catalog_sha256": "802ff46581bf67c24c33fac6e74609cbdb76f4ed73bf6f8d87a12f5b032a366e",
-  "changed": true,
+  "changed": false,
   "count": 9657,
   "gzip_bytes": 9513660,
-  "last_attempt_utc": "2026-11-25T17:03:25+00:00",
+  "last_attempt_utc": "2026-11-25T18:04:27+00:00",
   "last_success_hour_utc": "2026-11-25T17Z",
   "last_success_utc": "2026-11-25T17:03:36+00:00",
   "official_icons": true,
   "product_policy": "exact-products-v2",
   "raw_bytes": 24283121,
-  "result": "success",
+  "result": "failure",
   "revisions": {
     "catalog": "f51bac49f801ad24b4fc4ae9fa8ad50abfadfe6d",
     "statistics": "8eb9263ab779ab58b40fe050d1561dd732b26124",
