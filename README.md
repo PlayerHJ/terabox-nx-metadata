@@ -20,7 +20,7 @@ Game icons are matched by exact title ID against the Korean, US English, UK Engl
 
 ## Game ratings and completion times
 
-The separate `data/shop-metrics.json.gz` feed combines [IGDB](https://www.igdb.com/) user ratings and average completion times with Nintendo Switch application IDs. The daily GitHub Actions workflow uses `IGDB_CLIENT_ID` and `IGDB_CLIENT_SECRET` repository secrets. It matches Nintendo product identifiers first and uses exact localized names with Switch release evidence when product identifiers have no match. It omits ambiguous matches and retains the last published feed when a refresh fails. The catalog and DLC refreshes have their own schedule.
+The separate `data/shop-metrics.json.gz` feed combines [IGDB](https://www.igdb.com/) user ratings and average completion times with Nintendo Switch application IDs. GitHub Actions checks at minute 41 of every hour using the `IGDB_CLIENT_ID` and `IGDB_CLIENT_SECRET` repository secrets. It matches Nintendo product identifiers first and uses exact localized names with Switch release evidence when product identifiers have no match. It omits ambiguous matches and retains the last published feed when a refresh fails. The catalog and DLC refreshes have their own schedule.
 
 The existing hourly workflow also checks this catalog. [shop-refresh-status.json](data/shop-refresh-status.json) records the check time, source revisions, size, and hash. Identical content keeps the same bytes. Failed refreshes keep the previous catalog and can retry within the same hour. The original DLC endpoints keep their existing format and independent status.
 
