@@ -1,18 +1,18 @@
 {
-  "catalog_sha256": "69a800ccced36340db7ca958aed9ad5e2e749728094d6b1ba65302a8a93a7407",
-  "changed": false,
+  "catalog_sha256": "6237dd0860338fb27594ae06277ee820b02bfaa653eb14d56651b098ba034f69",
+  "changed": true,
   "count": 9657,
-  "gzip_bytes": 9513560,
-  "last_attempt_utc": "2026-11-26T04:03:28+00:00",
-  "last_success_hour_utc": "2026-11-26T04Z",
-  "last_success_utc": "2026-11-26T04:03:28+00:00",
+  "gzip_bytes": 9513730,
+  "last_attempt_utc": "2026-11-26T05:03:21+00:00",
+  "last_success_hour_utc": "2026-11-26T05Z",
+  "last_success_utc": "2026-11-26T05:03:33+00:00",
   "official_icons": true,
   "product_policy": "exact-products-v2",
-  "raw_bytes": 24282900,
+  "raw_bytes": 24282755,
   "result": "success",
   "revisions": {
     "catalog": "b8d8a05798b479897793cf5ddedd70a86cd15a80",
-    "statistics": "60d21a03f33050e8651d7ec6c475c45699783804",
+    "statistics": "a7ca738d250e7da757aabb7827b88425ad5c541c",
     "title_db": "4a055e2451e765a860b4b6ade76ea4df6b036004"
   }
 }
