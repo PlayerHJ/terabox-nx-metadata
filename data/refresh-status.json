@@ -1,17 +1,17 @@
 {
   "schema": 1,
   "source": "borntohonk/titledb",
-  "last_attempt_utc": "2026-11-27T01:03:23Z",
+  "last_attempt_utc": "2026-11-27T02:03:19Z",
   "upstream_revision": "00606294d9b0585e09e191dc23a07f25ef29990b",
   "names": 24664,
   "gzip_bytes": 426159,
   "index_sha256": "ea9192a741a3ae18135ef46dfb2f9a652f144004e62dfd9a710ba1b6bf42ec6e",
-  "result": "failure",
-  "last_success_utc": "2026-11-27T00:03:21Z",
-  "last_success_window_utc": "2026-11-27T00:00:00Z",
-  "attempts": 3,
+  "result": "success",
+  "last_success_utc": "2026-11-27T02:03:21Z",
+  "last_success_window_utc": "2026-11-27T02:00:00Z",
+  "attempts": 1,
   "language_priority": "ko-en-ja-v1",
-  "run_url": "https://github.com/PlayerHJ/terabox-nx-metadata/actions/runs/45920310357",
+  "run_url": "https://github.com/PlayerHJ/terabox-nx-metadata/actions/runs/45926047352",
   "metadata_revision": "00606294d9b0585e09e191dc23a07f25ef29990b",
   "metadata_policy": "version-dates-v2",
   "metadata_names": 24664,
@@ -21,5 +21,6 @@
   "metadata_raw_bytes": 3516059,
   "metadata_sha256": "acbacf3b68cf61b2d748f8fe13697efe66f02ec8c3dce6f06544c5bcaa8f5ba0",
   "game_release_dates": 26295,
-  "error": "Upstream check/build failed; previous successful check is retained. See Actions logs."
+  "changed": false,
+  "metadata_changed": false
 }
